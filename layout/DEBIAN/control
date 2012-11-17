@@ -1,0 +1,9 @@
+Package: kr.iolate.emanager
+Name: ExtensionManager
+Depends: preferenceloader
+Version: 1.0
+Architecture: iphoneos-arm
+Description: Toggle MobileSubstrate Extensions.
+Maintainer: iolate
+Author: iolate
+Section: System

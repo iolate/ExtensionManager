@@ -1,0 +1,14 @@
+#!/bin/sh
+
+chown root:wheel /usr/bin/extensionmand
+chown root:wheel /System/Library/LaunchDaemons/kr.iolate.extensionmand.plist
+
+if [[ $1 == upgrade ]]; then
+/bin/launchctl unload /System/Library/LaunchDaemons/kr.iolate.extensionmand.plist
+fi
+
+if [[ $1 == install || $1 == upgrade ]]; then
+/bin/launchctl load /System/Library/LaunchDaemons/kr.iolate.extensionmand.plist
+fi
+
+exit 0

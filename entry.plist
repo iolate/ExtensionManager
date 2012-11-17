@@ -1,0 +1,10 @@
+{
+	entry = {
+		bundle = ExtensionManager;
+		cell = PSLinkCell;
+		detail = EMViewController;
+		icon = "Icon.png";
+		isController = 1;
+		label = ExtensionManager;
+	};
+}
