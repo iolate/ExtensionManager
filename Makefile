@@ -1,4 +1,4 @@
-export FW_DEVICE_IP=10.0.1.3
+export FW_DEVICE_IP=10.0.1.4
 
 include theos/makefiles/common.mk
 
@@ -9,7 +9,7 @@ extensionmand_FRAMEWORKS = CoreFoundation
 extensionmand_PRIVATE_FRAMEWORKS = AppSupport
 
 BUNDLE_NAME = ExtensionManager
-ExtensionManager_FILES = ExtensionManager.mm MBProgressHUD.m
+ExtensionManager_FILES = ExtensionManager.mm
 ExtensionManager_INSTALL_PATH = /Library/PreferenceBundles
 ExtensionManager_FRAMEWORKS = UIKit CoreGraphics
 ExtensionManager_PRIVATE_FRAMEWORKS = Preferences AppSupport

@@ -3,13 +3,10 @@
 #import <Foundation/NSTask.h>
 #import <AppSupport/CPDistributedMessagingCenter.h>
 
-#import "MBProgressHUD.h"
-
 #define sortedKeyArray( dic ) [[dic allKeys] sortedArrayUsingSelector:@selector(compare:)]
 #define initVar( var ) if (var) { [var release]; var = nil; }
 
 @interface EMViewController: UITableViewController {
-    EM_MBProgressHUD* HUD;
 }
 @property (nonatomic, retain) NSMutableDictionary* extensions;
 @property (nonatomic, retain) NSMutableDictionary* packageInfo;
@@ -20,6 +17,10 @@
 -(void)loadExtensions;
 -(void)rearrangeDataForTable;
 @end
+
+
+static BOOL didFinishLoading = NO;
+static BOOL loadingState = 0;
 
 @implementation EMViewController
 @synthesize extensions, packageInfo, tableExt, singleExtensions;
@@ -37,7 +38,6 @@
     self = [super initWithStyle:UITableViewStyleGrouped];
     
     if (self) {
-        HUD = nil;
     }
     
     return self;
@@ -49,25 +49,25 @@
 
 - (void)viewWillDisappear:(BOOL)animated
 {
-
 	[super viewWillDisappear:animated];
+    didFinishLoading = NO;
+    loadingState = 0;
 }
 
 - (void)viewWillAppear:(BOOL)animated
 {
     [super viewWillAppear:animated];
     
-    UIWindow* window = [[UIApplication sharedApplication] keyWindow];
+    loadingState = 1;
+    [self.tableView reloadData];
     
-    if (window) {
-        HUD = [EM_MBProgressHUD showHUDAddedTo:window animated:YES];
-        HUD.labelText = @"Search Packages...";
-        [HUD showWhileExecuting:@selector(loadExtensions) onTarget:self withObject:nil animated:YES];
-    }
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        [self loadExtensions];
+    });
 }
 -(void)respringSpringboard
 {
-    system("killall -9 SpringBoard");
+    system("killall -9 backboardd SpringBoard");
 }
 
 - (void)viewDidLoad
@@ -119,15 +119,15 @@
         
         if (![fileName hasPrefix:@"."] && ([[fileName pathExtension] isEqualToString:@"dylib"] || [[fileName pathExtension] isEqualToString:@"disabled"]))
         {
-            //dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            //dispatch_sync(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             [self searchPackage:fileName Enable:[[fileName pathExtension] isEqualToString:@"dylib"] ? YES : NO];
             //});
         }
     }
     
-    if (HUD) {
-        HUD.labelText = @"Rearrange Data...";
-    }
+    loadingState = 2;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self.tableView reloadData]; });
+    
     [self rearrangeDataForTable];
 }
 
@@ -302,15 +302,10 @@
 -(void)checkDepends:(NSDictionary* )dylib
 {
     
-    
-    
 }
 
 -(void)didChangedSwitch:(UISwitch *)tableSwitch 
 {
-    HUD.labelText = @"Loading...";
-    [HUD show:YES];
-    
     UITableViewCell *cell = (UITableViewCell *)tableSwitch.superview;
     NSIndexPath *indexPath = [self.tableView indexPathForCell:cell];
     
@@ -355,8 +350,6 @@
         [alert show];
         [alert release];
     }
-    
-    [HUD hide:YES];
 }
 
 -(void)rearrangeDataForTable {
@@ -444,42 +437,86 @@
     
     [singleExt release];
     
-    [self.tableView reloadData];
+    didFinishLoading = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self.tableView reloadData]; });
 }
 #pragma mark Table View
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return [[tableExt allKeys] count] + ([singleExtensions count] ? 1 : 0);
+    if (didFinishLoading) {
+        return [[tableExt allKeys] count] + ([singleExtensions count] ? 1 : 0);
+    }else{
+        return 1;
+    }
+    
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    if (section < (int)[[tableExt allKeys] count]) {
-        return [[tableExt objectForKey:[sortedKeyArray(tableExt) objectAtIndex:section]] count];
-    }else {
-        return [singleExtensions count];
+    if (didFinishLoading) {
+        if (section < (int)[[tableExt allKeys] count]) {
+            return [[tableExt objectForKey:[sortedKeyArray(tableExt) objectAtIndex:section]] count];
+        }else {
+            return [singleExtensions count];
+        }
+    }else{
+        return 1;
     }
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
 {
-    if (section < (int)[[tableExt allKeys] count]) {
-        NSString* package = [sortedKeyArray(tableExt) objectAtIndex:section];
-        
-        NSString* header = [NSString stringWithFormat:@"%@ (%@)", package, [[[tableExt objectForKey:package] objectAtIndex:0] objectForKey:@"packageID"]];
-        return header;
-    }else return nil;
+    if (didFinishLoading) {
+        if (section < (int)[[tableExt allKeys] count]) {
+            NSString* package = [sortedKeyArray(tableExt) objectAtIndex:section];
+            
+            NSString* header = [NSString stringWithFormat:@"%@ (%@)", package, [[[tableExt objectForKey:package] objectAtIndex:0] objectForKey:@"packageID"]];
+            return header;
+        }else return nil;
+    }else{
+        return nil;
+    }
 }
 
 -(NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
 {
-    int endRow = [[tableExt allKeys] count] + ([singleExtensions count] ? 1 : 0) - 1;
-    if (section == endRow) {
-        return @"\n\nExtensionManager © 2012 iolate\nTwitter: @iolate_e";
-    }else return nil;
+    if (didFinishLoading) {
+        int endRow = [[tableExt allKeys] count] + ([singleExtensions count] ? 1 : 0) - 1;
+        if (section == endRow) {
+            return @"\n\nExtensionManager © 2012-2013 iolate\nTwitter: @iolate_e";
+        }else return nil;
+    }else{
+        return nil;
+    }
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    static NSString* Cell = @"SwitchCellll";
+    static NSString* Cell = @"SwitchCell";
+    static NSString* LoadingCell = @"LoadingCell";
+    
+    if (!didFinishLoading) {
+        UITableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:LoadingCell];
+        if (cell == nil) {
+            cell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:LoadingCell] autorelease];
+            
+            cell.selectionStyle = UITableViewCellSelectionStyleNone;
+            cell.textLabel.textAlignment = UITextAlignmentLeft;
+            cell.accessoryType = UITableViewCellAccessoryNone;
+            
+            UIActivityIndicatorView *activityView = [[[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray] autorelease];
+            [activityView startAnimating];
+            [cell setAccessoryView:activityView];
+        }
+        
+        if (loadingState == 0) {
+            cell.textLabel.text = @"Loading...";
+        }else if (loadingState == 1) {
+            cell.textLabel.text = @"Search Packages...";
+        }else if (loadingState == 2) {
+            cell.textLabel.text = @"Arrange Data...";
+        }
+        
+        return cell;
+    }
     
     UISwitch* tableSwitch = nil;
     UITableViewCell* cell = nil;
@@ -527,13 +564,15 @@
     
     cell.imageView.image = [UIImage imageWithContentsOfFile:imagePath];
     
-    tableSwitch.on = [[dylib objectForKey:@"enable"] boolValue];
-    
-    NSString* pID = [dylib objectForKey:@"packageID"];
-    if ([pID isEqualToString:@"preferenceloader"] || [pID isEqualToString:@"com.saurik.substrate.safemode"]) {
-        tableSwitch.enabled = FALSE;
-    }else{
-        tableSwitch.enabled = TRUE;
+    if (tableSwitch != nil) {
+        tableSwitch.on = [[dylib objectForKey:@"enable"] boolValue];
+        
+        NSString* pID = [dylib objectForKey:@"packageID"];
+        if ([pID isEqualToString:@"preferenceloader"] || [pID isEqualToString:@"com.saurik.substrate.safemode"]) {
+            tableSwitch.enabled = FALSE;
+        }else{
+            tableSwitch.enabled = TRUE;
+        }
     }
     
     return cell;
